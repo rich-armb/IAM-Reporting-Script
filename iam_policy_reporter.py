@@ -64,7 +64,7 @@ def main():
         print("Please run the required `gcloud` command first to create this file.")
         sys.exit(1)
 
-    print(f"--> Starting report generation from '{INPUT_JSON}'...")
+    print(f"--> Processing {INPUT_JSON} to create final comprehensive report...")
     
     final_rows = []
     try:
@@ -77,12 +77,11 @@ def main():
 
     for policy_doc in all_policies:
         resource = policy_doc.get('resource', '')
-        # Extract the organization ID, cleaning up the 'organizations/' prefix
+        # Get the Organization ID from the policy document
         organization_id = policy_doc.get('organization', 'organizations/UNKNOWN').split('/')[1]
         
         resource_type, resource_id, resource_name, parent_name = "", "", "", ""
 
-        # Use precise regex to identify ONLY project or folder resources
         is_project = re.match(r'^//cloudresourcemanager.googleapis.com/projects/[^/]+$', resource)
         is_folder = re.match(r'^//cloudresourcemanager.googleapis.com/folders/[^/]+$', resource)
 
@@ -108,21 +107,10 @@ def main():
             resource_id = resource.split('/')[-1]
             print(f"Processing Folder: {resource_id}")
             resource_name = get_folder_name(f"folders/{resource_id}")
-            # Get the parent folder's name for additional context
-            try:
-                proc = subprocess.run(
-                    ['gcloud', 'resource-manager', 'folders', 'describe', resource_id, '--format=value(parent)'],
-                     capture_output=True, text=True, check=True, encoding='utf-8'
-                )
-                parent_path = proc.stdout.strip()
-                if 'folders/' in parent_path:
-                    parent_name = get_folder_name(parent_path)
-                else:
-                    parent_name = "<Organization>"
-            except (subprocess.CalledProcessError, ValueError):
-                parent_name = ""
+            # This is the simplified logic from the last working version
+            parent_name = "<See Folder Hierarchy>"
         else:
-            # This skips permissions on all other resource types (datasets, secrets, etc.)
+            # This skips permissions on all other resource types
             continue
         
         # Navigate the JSON structure to get roles and members
