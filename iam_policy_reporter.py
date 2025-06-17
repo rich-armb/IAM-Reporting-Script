@@ -91,14 +91,22 @@ def main():
             if ':' in resource_id: continue # Skip special system-owned projects
 
             print(f"Processing Project: {resource_id}")
+            # --- THIS BLOCK IS NOW CORRECTED ---
             try:
+                # Get the project's name, its parent's type, and its parent's ID
                 proc = subprocess.run(
-                    ['gcloud', 'projects', 'describe', resource_id, '--format=value(name, parent.id)'],
+                    ['gcloud', 'projects', 'describe', resource_id, '--format=value(name, parent.type, parent.id)'],
                     capture_output=True, text=True, check=True, encoding='utf-8'
                 )
-                name, parent_id_str = proc.stdout.strip().split('\t')
+                name, parent_type, parent_id_str = proc.stdout.strip().split('\t')
                 resource_name = name
-                parent_name = get_folder_name(f"folders/{parent_id_str}")
+                
+                # Check if the parent is a folder or the organization
+                if parent_type == 'folder':
+                    parent_name = get_folder_name(f"folders/{parent_id_str}")
+                else: # parent_type will be 'organization'
+                    parent_name = "<Organization>"
+
             except (subprocess.CalledProcessError, ValueError):
                 resource_name = "<project details not found>"
                 parent_name = ""
@@ -107,8 +115,23 @@ def main():
             resource_id = resource.split('/')[-1]
             print(f"Processing Folder: {resource_id}")
             resource_name = get_folder_name(f"folders/{resource_id}")
-            # This is the simplified logic from the last working version
-            parent_name = "<See Folder Hierarchy>"
+            # This advanced block looks up the folder's parent details.
+            try:
+                proc = subprocess.run(
+                    ['gcloud', 'resource-manager', 'folders', 'describe', resource_id, '--format=value(parent)'],
+                     capture_output=True, text=True, check=True, encoding='utf-8'
+                )
+                parent_path = proc.stdout.strip()
+                # Check if the parent is another folder or the organization
+                if 'folders/' in parent_path:
+                    # If the parent is a folder, look up its name
+                    parent_name = get_folder_name(parent_path)
+                else:
+                    # Otherwise, the parent is the organization
+                    parent_name = "<Organization>"
+            except (subprocess.CalledProcessError, ValueError):
+                # If the lookup fails for any reason
+                parent_name = "<Parent lookup failed>"
         else:
             # This skips permissions on all other resource types
             continue
